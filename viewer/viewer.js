@@ -5,8 +5,10 @@ let currentPage = 0;
 let currentDpi = 150;
 let renderPending = false;
 
-const canvas     = document.getElementById('canvas');
-const canvasWrap = document.getElementById('canvas-wrap');
+const canvas         = document.getElementById('canvas');
+const canvasWrap     = document.getElementById('canvas-wrap');
+const pageContainer  = document.getElementById('page-container');
+const textLayer      = document.getElementById('text-layer');
 const dropZone   = document.getElementById('drop-zone');
 const status     = document.getElementById('status');
 const errDiv     = document.getElementById('error');
@@ -54,6 +56,7 @@ async function main() {
 // ── Load helpers ─────────────────────────────────────────────────────────────
 
 async function parseAndRender(bytes) {
+  if (doc) { doc.free(); doc = null; }
   status.textContent = 'Parsing…';
   errDiv.textContent = '';
   try {
@@ -90,14 +93,14 @@ async function loadFile(file) {
 async function renderPage() {
   if (!doc) return;
 
+  // Debounce: skip intermediate renders while a render is in flight.
+  if (renderPending) return;
+  renderPending = true;
+
   // Snapshot mutable state — rapid slider/key events must not cause a DPI
   // mismatch between width_at/height_at and render().
   const page = doc.page(currentPage);
   const dpi  = currentDpi;
-
-  // Debounce: skip intermediate renders while a render is in flight.
-  if (renderPending) return;
-  renderPending = true;
 
   const w = page.width_at(dpi);
   const h = page.height_at(dpi);
@@ -112,9 +115,46 @@ async function renderPage() {
     canvas.width  = w;
     canvas.height = h;
     canvas.getContext('2d').putImageData(new ImageData(pixels, w, h), 0, 0);
+    pixels.free();
     status.textContent = `${w}×${h} px — ${ms} ms`;
+    pageContainer.style.width  = w + 'px';
+    pageContainer.style.height = h + 'px';
+    renderTextLayer(page, w, h);
   } catch (e) {
     showError(`Render error: ${e.message}`);
+  } finally {
+    page.free();
+  }
+}
+
+// ── Text layer ────────────────────────────────────────────────────────────────
+
+function renderTextLayer(page, w, h) {
+  textLayer.innerHTML = '';
+  textLayer.style.width  = w + 'px';
+  textLayer.style.height = h + 'px';
+
+  let json;
+  try { json = page.text_zones_json(currentDpi); } catch { return; }
+  if (!json) return;
+
+  const zones = JSON.parse(json);
+  for (const z of zones) {
+    if (!z.w || !z.h || !z.t) continue;
+    const span = document.createElement('span');
+    span.textContent = z.t;
+    span.style.left     = z.x + 'px';
+    span.style.top      = z.y + 'px';
+    span.style.width    = z.w + 'px';
+    span.style.height   = z.h + 'px';
+    span.style.fontSize = z.h + 'px';
+    textLayer.appendChild(span);
+  }
+
+  // Scale each span horizontally so it fills exactly the zone width
+  for (const span of textLayer.children) {
+    const nw = span.scrollWidth;
+    if (nw > 0) span.style.transform = `scaleX(${parseInt(span.style.width) / nw})`;
   }
 }
 
@@ -132,6 +172,7 @@ function fitWidth() {
   const pageDpi   = page.dpi();
   const nativeW   = page.width_at(pageDpi);
   const available = canvasWrap.clientWidth - 32; // 16 px padding × 2
+  page.free();
   setDpi(available * pageDpi / nativeW);
   renderPage();
 }
@@ -142,6 +183,7 @@ function fitPage() {
   const pageDpi   = page.dpi();
   const nativeW   = page.width_at(pageDpi);
   const nativeH   = page.height_at(pageDpi);
+  page.free();
   const availW    = canvasWrap.clientWidth  - 32;
   const availH    = canvasWrap.clientHeight - 32;
   setDpi(Math.min(availW * pageDpi / nativeW, availH * pageDpi / nativeH));

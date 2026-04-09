@@ -140,4 +140,100 @@ impl WasmPage {
         let pm = render_pixmap(page, &opts).map_err(|e| JsError::new(&e.to_string()))?;
         Ok(js_sys::Uint8ClampedArray::from(pm.data.as_slice()))
     }
+
+    /// Extract the plain text content of this page from the TXTz/TXTa layer.
+    ///
+    /// Returns `undefined` if the page has no text layer.
+    /// Throws on decode failure.
+    pub fn text(&self) -> Result<Option<String>, JsError> {
+        let page = self
+            .doc
+            .page(self.index)
+            .map_err(|e| JsError::new(&e.to_string()))?;
+        page.text().map_err(|e| JsError::new(&e.to_string()))
+    }
+
+    /// Return text zone data for this page, scaled to match a render at `target_dpi`.
+    ///
+    /// Returns a JSON string — array of `{"t":"…","x":N,"y":N,"w":N,"h":N}` objects,
+    /// one per leaf text zone, with pixel coordinates identical to the canvas produced
+    /// by `render(target_dpi)`.
+    ///
+    /// Returns `null` if the page has no text layer.
+    /// Throws on decode failure.
+    pub fn text_zones_json(&self, target_dpi: u32) -> Result<Option<String>, JsError> {
+        let page = self
+            .doc
+            .page(self.index)
+            .map_err(|e| JsError::new(&e.to_string()))?;
+
+        let scale = target_dpi as f32 / page.dpi() as f32;
+        let render_w = ((page.width() as f32 * scale).round() as u32).max(1);
+        let render_h = ((page.height() as f32 * scale).round() as u32).max(1);
+
+        let Some(layer) = page
+            .text_layer_at_size(render_w, render_h)
+            .map_err(|e| JsError::new(&e.to_string()))?
+        else {
+            return Ok(None);
+        };
+
+        let mut buf = String::from("[");
+        let mut first = true;
+        for zone in &layer.zones {
+            collect_leaf_zones(zone, &mut buf, &mut first);
+        }
+        buf.push(']');
+        Ok(Some(buf))
+    }
+}
+
+// ── Text zone helpers ─────────────────────────────────────────────────────────
+
+fn collect_leaf_zones(
+    zone: &djvu_rs::text::TextZone,
+    buf: &mut String,
+    first: &mut bool,
+) {
+    if zone.children.is_empty() {
+        let t = zone.text.trim();
+        if t.is_empty() {
+            return;
+        }
+        if !*first {
+            buf.push(',');
+        }
+        *first = false;
+        buf.push_str("{\"t\":\"");
+        json_escape_into(t, buf);
+        buf.push_str("\",\"x\":");
+        buf.push_str(&zone.rect.x.to_string());
+        buf.push_str(",\"y\":");
+        buf.push_str(&zone.rect.y.to_string());
+        buf.push_str(",\"w\":");
+        buf.push_str(&zone.rect.width.to_string());
+        buf.push_str(",\"h\":");
+        buf.push_str(&zone.rect.height.to_string());
+        buf.push('}');
+    } else {
+        for child in &zone.children {
+            collect_leaf_zones(child, buf, first);
+        }
+    }
+}
+
+fn json_escape_into(s: &str, buf: &mut String) {
+    for ch in s.chars() {
+        match ch {
+            '"' => buf.push_str("\\\""),
+            '\\' => buf.push_str("\\\\"),
+            '\n' => buf.push_str("\\n"),
+            '\r' => buf.push_str("\\r"),
+            '\t' => buf.push_str("\\t"),
+            c if (c as u32) < 0x20 => {
+                buf.push_str(&format!("\\u{:04x}", c as u32));
+            }
+            c => buf.push(c),
+        }
+    }
 }
