@@ -115,7 +115,6 @@ async function renderPage() {
     canvas.width  = w;
     canvas.height = h;
     canvas.getContext('2d').putImageData(new ImageData(pixels, w, h), 0, 0);
-    pixels.free();
     status.textContent = `${w}×${h} px — ${ms} ms`;
     pageContainer.style.width  = w + 'px';
     pageContainer.style.height = h + 'px';

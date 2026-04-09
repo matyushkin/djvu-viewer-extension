@@ -138,7 +138,12 @@ impl WasmPage {
         };
 
         let pm = render_pixmap(page, &opts).map_err(|e| JsError::new(&e.to_string()))?;
-        Ok(js_sys::Uint8ClampedArray::from(pm.data.as_slice()))
+        // `from(slice)` creates a *view* into WASM linear memory that becomes
+        // invalid once `pm` is dropped.  Use new_with_length + copy_from to
+        // produce an owned JS-side buffer instead.
+        let arr = js_sys::Uint8ClampedArray::new_with_length(pm.data.len() as u32);
+        arr.copy_from(&pm.data);
+        Ok(arr)
     }
 
     /// Extract the plain text content of this page from the TXTz/TXTa layer.
