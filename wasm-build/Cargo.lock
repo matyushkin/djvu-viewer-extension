@@ -182,11 +182,9 @@ checksum = "f5863fe024d097a23cb7af8d96f6de262759ebf69f6df58423ee6f8a8283f9b0"
 dependencies = [
  "clap",
  "jpeg-encoder",
- "js-sys",
  "miniz_oxide",
  "png",
  "thiserror",
- "wasm-bindgen",
  "wide",
  "zip",
  "zune-jpeg",
@@ -197,6 +195,8 @@ name = "djvu-viewer-wasm"
 version = "0.1.0"
 dependencies = [
  "djvu-rs",
+ "js-sys",
+ "wasm-bindgen",
 ]
 
 [[package]]
