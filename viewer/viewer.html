@@ -12,26 +12,43 @@
       padding: 6px 12px;
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 8px;
       flex-shrink: 0;
       font-size: 13px;
     }
     #toolbar button {
       background: #555; border: none; color: #eee; padding: 4px 10px;
-      border-radius: 4px; cursor: pointer;
+      border-radius: 4px; cursor: pointer; white-space: nowrap;
     }
     #toolbar button:disabled { opacity: 0.4; cursor: default; }
     #toolbar button:hover:not(:disabled) { background: #777; }
-    #page-info { min-width: 80px; text-align: center; }
+    .sep { width: 1px; background: #555; height: 20px; flex-shrink: 0; }
+    #page-info { min-width: 60px; text-align: center; }
     #dpi-label { white-space: nowrap; }
-    #dpi-range { width: 100px; }
-    #filename { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #aaa; }
+    #dpi-range { width: 90px; }
+    #filename { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #aaa; min-width: 0; }
     #status { font-size: 11px; color: #aaa; white-space: nowrap; }
 
     #canvas-wrap {
-      flex: 1; overflow: auto; display: flex; justify-content: center; align-items: flex-start; padding: 16px;
+      flex: 1; overflow: auto; display: flex; justify-content: center;
+      align-items: flex-start; padding: 16px; position: relative;
     }
+    /* drag-over highlight */
+    #canvas-wrap.drag-over { outline: 3px dashed #7ab; outline-offset: -3px; }
+
     canvas { display: block; box-shadow: 0 4px 24px rgba(0,0,0,.6); background: #fff; }
+
+    #drop-zone {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+    }
+    #drop-hint {
+      border: 2px dashed #666; border-radius: 12px; padding: 40px 60px;
+      text-align: center; color: #888; line-height: 2;
+      pointer-events: none;
+    }
+    #drop-hint strong { color: #aaa; }
+
     #error { color: #f88; padding: 16px; }
   </style>
 </head>
@@ -40,16 +57,27 @@
   <button id="prev-btn" disabled>◀</button>
   <span id="page-info">— / —</span>
   <button id="next-btn" disabled>▶</button>
-  <span style="width:1px;background:#555;height:20px"></span>
+  <div class="sep"></div>
   <label id="dpi-label">DPI: <span id="dpi-val">150</span>
     <input type="range" id="dpi-range" min="36" max="600" step="6" value="150">
   </label>
-  <span style="width:1px;background:#555;height:20px"></span>
+  <button id="fit-w-btn" title="Fit Width (W)">Fit W</button>
+  <button id="fit-p-btn" title="Fit Page (F)">Fit ⊡</button>
+  <div class="sep"></div>
+  <button id="open-btn">Open…</button>
+  <input type="file" id="file-input" accept=".djvu" style="display:none">
+  <div class="sep"></div>
   <span id="filename"></span>
   <span id="status">Loading…</span>
 </div>
 <div id="canvas-wrap">
-  <canvas id="canvas"></canvas>
+  <canvas id="canvas" style="display:none"></canvas>
+  <div id="drop-zone">
+    <div id="drop-hint">
+      <p>Drop a <strong>.djvu</strong> file here</p>
+      <p>or click <strong>Open…</strong> in the toolbar</p>
+    </div>
+  </div>
   <div id="error"></div>
 </div>
 

@@ -5,30 +5,37 @@ let currentPage = 0;
 let currentDpi = 150;
 let renderPending = false;
 
-const canvas  = document.getElementById('canvas');
-const status  = document.getElementById('status');
-const errDiv  = document.getElementById('error');
-const pageInfo = document.getElementById('page-info');
-const prevBtn = document.getElementById('prev-btn');
-const nextBtn = document.getElementById('next-btn');
-const dpiRange = document.getElementById('dpi-range');
-const dpiVal  = document.getElementById('dpi-val');
-const filename = document.getElementById('filename');
+const canvas     = document.getElementById('canvas');
+const canvasWrap = document.getElementById('canvas-wrap');
+const dropZone   = document.getElementById('drop-zone');
+const status     = document.getElementById('status');
+const errDiv     = document.getElementById('error');
+const pageInfo   = document.getElementById('page-info');
+const prevBtn    = document.getElementById('prev-btn');
+const nextBtn    = document.getElementById('next-btn');
+const dpiRange   = document.getElementById('dpi-range');
+const dpiVal     = document.getElementById('dpi-val');
+const filenameEl = document.getElementById('filename');
+const openBtn    = document.getElementById('open-btn');
+const fileInput  = document.getElementById('file-input');
+const fitWBtn    = document.getElementById('fit-w-btn');
+const fitPBtn    = document.getElementById('fit-p-btn');
+
+// ── Initialise WASM ───────────────────────────────────────────────────────────
 
 async function main() {
   await init();
 
-  // URL to fetch is passed as ?url=<original-url>.
-  // regexSubstitution inserts the raw URL (not percent-encoded), so a second
-  // '?' in the value would confuse URLSearchParams.  Parse manually instead.
-  const search = location.search.slice(1); // strip leading '?'
+  const search = location.search.slice(1);
   const djvuUrl = search.startsWith('url=') ? search.slice(4) : null;
+
   if (!djvuUrl) {
-    showError('No DjVu URL specified.');
+    // No URL → stay on drop-zone, nothing more to do until user picks a file.
+    status.textContent = 'Ready';
     return;
   }
 
-  filename.textContent = djvuUrl.split('/').pop();
+  filenameEl.textContent = djvuUrl.split('/').pop();
   status.textContent = 'Fetching…';
 
   let bytes;
@@ -41,7 +48,14 @@ async function main() {
     return;
   }
 
+  await parseAndRender(bytes);
+}
+
+// ── Load helpers ─────────────────────────────────────────────────────────────
+
+async function parseAndRender(bytes) {
   status.textContent = 'Parsing…';
+  errDiv.textContent = '';
   try {
     doc = WasmDocument.from_bytes(bytes);
   } catch (e) {
@@ -49,20 +63,39 @@ async function main() {
     return;
   }
 
+  // Show canvas, hide drop-zone.
+  canvas.style.display = 'block';
+  dropZone.style.display = 'none';
+
+  currentPage = 0;
   updateControls();
-  await renderPage();
+  fitWidth();        // open at fit-to-width so first page is always visible
 }
+
+async function loadFile(file) {
+  if (!file) return;
+  if (!file.name.toLowerCase().endsWith('.djvu')) {
+    showError('Not a .djvu file.');
+    return;
+  }
+  filenameEl.textContent = file.name;
+  status.textContent = 'Reading…';
+  errDiv.textContent = '';
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  await parseAndRender(bytes);
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
 
 async function renderPage() {
   if (!doc) return;
 
-  // Snapshot mutable state so rapid slider/key events can't cause a DPI
-  // mismatch between width_at/height_at and render() calls.
+  // Snapshot mutable state — rapid slider/key events must not cause a DPI
+  // mismatch between width_at/height_at and render().
   const page = doc.page(currentPage);
   const dpi  = currentDpi;
 
-  // Debounce: if another render is already scheduled, skip this one — the
-  // final render (after the user stops dragging) will pick up the latest DPI.
+  // Debounce: skip intermediate renders while a render is in flight.
   if (renderPending) return;
   renderPending = true;
 
@@ -76,7 +109,7 @@ async function renderPage() {
   try {
     const pixels = page.render(dpi);
     const ms = (performance.now() - t0).toFixed(1);
-    canvas.width = w;
+    canvas.width  = w;
     canvas.height = h;
     canvas.getContext('2d').putImageData(new ImageData(pixels, w, h), 0, 0);
     status.textContent = `${w}×${h} px — ${ms} ms`;
@@ -84,6 +117,38 @@ async function renderPage() {
     showError(`Render error: ${e.message}`);
   }
 }
+
+// ── Zoom helpers ─────────────────────────────────────────────────────────────
+
+function setDpi(dpi) {
+  currentDpi = Math.max(36, Math.min(600, Math.round(dpi)));
+  dpiRange.value    = currentDpi;
+  dpiVal.textContent = currentDpi;
+}
+
+function fitWidth() {
+  if (!doc) return;
+  const page      = doc.page(currentPage);
+  const pageDpi   = page.dpi();
+  const nativeW   = page.width_at(pageDpi);
+  const available = canvasWrap.clientWidth - 32; // 16 px padding × 2
+  setDpi(available * pageDpi / nativeW);
+  renderPage();
+}
+
+function fitPage() {
+  if (!doc) return;
+  const page      = doc.page(currentPage);
+  const pageDpi   = page.dpi();
+  const nativeW   = page.width_at(pageDpi);
+  const nativeH   = page.height_at(pageDpi);
+  const availW    = canvasWrap.clientWidth  - 32;
+  const availH    = canvasWrap.clientHeight - 32;
+  setDpi(Math.min(availW * pageDpi / nativeW, availH * pageDpi / nativeH));
+  renderPage();
+}
+
+// ── UI helpers ────────────────────────────────────────────────────────────────
 
 function updateControls() {
   const count = doc ? doc.page_count() : 0;
@@ -97,6 +162,8 @@ function showError(msg) {
   status.textContent = 'Error';
 }
 
+// ── Event listeners ───────────────────────────────────────────────────────────
+
 prevBtn.addEventListener('click', () => { currentPage--; updateControls(); renderPage(); });
 nextBtn.addEventListener('click', () => { currentPage++; updateControls(); renderPage(); });
 
@@ -106,17 +173,33 @@ dpiRange.addEventListener('input', e => {
   renderPage();
 });
 
+fitWBtn.addEventListener('click', fitWidth);
+fitPBtn.addEventListener('click', fitPage);
+
+openBtn.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => { loadFile(e.target.files[0]); e.target.value = ''; });
+
+// Drag-and-drop
+canvasWrap.addEventListener('dragenter', e => { e.preventDefault(); canvasWrap.classList.add('drag-over'); });
+canvasWrap.addEventListener('dragover',  e => { e.preventDefault(); });
+canvasWrap.addEventListener('dragleave', e => { if (!canvasWrap.contains(e.relatedTarget)) canvasWrap.classList.remove('drag-over'); });
+canvasWrap.addEventListener('drop', e => {
+  e.preventDefault();
+  canvasWrap.classList.remove('drag-over');
+  loadFile(e.dataTransfer.files[0]);
+});
+
 document.addEventListener('keydown', e => {
   if (e.key === 'ArrowLeft'  && !prevBtn.disabled) { currentPage--; updateControls(); renderPage(); }
   if (e.key === 'ArrowRight' && !nextBtn.disabled) { currentPage++; updateControls(); renderPage(); }
   if ((e.key === '+' || e.key === '=') && currentDpi < 600) {
-    currentDpi = Math.min(600, currentDpi + 24); dpiRange.value = currentDpi;
-    dpiVal.textContent = currentDpi; renderPage();
+    setDpi(currentDpi + 24); renderPage();
   }
   if (e.key === '-' && currentDpi > 36) {
-    currentDpi = Math.max(36, currentDpi - 24); dpiRange.value = currentDpi;
-    dpiVal.textContent = currentDpi; renderPage();
+    setDpi(currentDpi - 24); renderPage();
   }
+  if (e.key === 'w' || e.key === 'W') fitWidth();
+  if (e.key === 'f' || e.key === 'F') fitPage();
 });
 
 main();
