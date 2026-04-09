@@ -19,7 +19,7 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["pkg/*", "viewer/*"],
+      "resources": ["viewer/*", "viewer/pkg/*"],
       "matches": ["<all_urls>"]
     }
   ],

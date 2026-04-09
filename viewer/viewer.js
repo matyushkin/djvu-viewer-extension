@@ -1,4 +1,4 @@
-import init, { WasmDocument } from '../pkg/djvu_rs.js';
+import init, { WasmDocument } from './pkg/djvu_viewer_wasm.js';
 
 let doc = null;
 let currentPage = 0;

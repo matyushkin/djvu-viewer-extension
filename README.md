@@ -6,33 +6,70 @@ No plugins. No servers. Fully offline.
 
 ## Features
 
-- Intercepts navigation to `.djvu` URLs (http, https, file://)
+- Intercepts navigation to `.djvu` URLs (http, https)
 - Page navigation (←/→ keys or toolbar buttons)
 - DPI/zoom slider (36–600 dpi, +/- keys)
 - Instant re-render on zoom change
 
-## Build
+## Requirements
+
+- [Rust toolchain](https://rustup.rs/) with `wasm32-unknown-unknown` target
+- [wasm-pack](https://rustwasm.github.io/wasm-pack/installer/) ≥ 0.13
 
 ```sh
-# 1. Build the djvu-rs WASM package
-cd ../djvu-rs
-wasm-pack build --target web --out-dir ../djvu-viewer-extension/pkg --features wasm
-
-# 2. Load in Chrome
-# Open chrome://extensions/ → "Load unpacked" → select this directory
+rustup target add wasm32-unknown-unknown
+curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 ```
 
-## Release build (for Web Store)
+## Building WASM
+
+The viewer depends on `viewer/pkg/` which is built from the self-contained
+wrapper in `wasm-build/`. It pulls `djvu-rs` from crates.io — no local
+checkout of djvu-rs is needed.
+
+Run from the repo root:
 
 ```sh
-cd ../djvu-rs
-wasm-pack build --release --target web --out-dir ../djvu-viewer-extension/pkg --features wasm
-cd ../djvu-viewer-extension
-zip -r djvu-viewer.zip . --exclude "*.git*" --exclude "node_modules/*"
+wasm-pack build --target web --out-dir "$PWD/viewer/pkg" wasm-build/
+```
+
+> `--out-dir` must be absolute (or use `$PWD/...`) because wasm-pack resolves
+> relative paths against the crate directory, not the shell working directory.
+
+## Loading in Chrome
+
+1. Build WASM (see above)
+2. Open `chrome://extensions/`
+3. Enable **Developer mode**
+4. Click **Load unpacked** → select this directory
+
+## Packaging for Chrome Web Store
+
+```sh
+wasm-pack build --target web --out-dir "$PWD/viewer/pkg" wasm-build/
+zip -r djvu-viewer.zip manifest.json background/ viewer/ rules/ icons/ \
+  --exclude "viewer/pkg/package.json"
+```
+
+## Project structure
+
+```
+manifest.json          — MV3 manifest (wasm-unsafe-eval CSP)
+background/
+  service_worker.js    — extension lifecycle
+rules/
+  redirect_djvu.json   — declarativeNetRequest: intercept *.djvu → viewer
+viewer/
+  viewer.html          — canvas-based viewer UI
+  viewer.js            — WASM integration and page controls
+  pkg/                 — built WASM output (gitignored, build locally)
+wasm-build/
+  Cargo.toml           — cdylib wrapper that pulls djvu-rs from crates.io
+  src/lib.rs
 ```
 
 ## Related
 
 - [djvu-rs](https://github.com/matyushkin/djvu-rs) — the Rust DjVu decoder
-- Issue [#73](https://github.com/matyushkin/djvu-rs/issues/73) — WASM bindings
+- [djvu-rs on crates.io](https://crates.io/crates/djvu-rs)
 - Issue [#119](https://github.com/matyushkin/djvu-rs/issues/119) — this extension

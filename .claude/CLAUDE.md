@@ -11,14 +11,25 @@ Chrome Manifest V3 extension that opens `.djvu` files natively in the browser, p
 
 ## WASM dependency
 
-The viewer depends on `pkg/` built from djvu-rs with:
+The viewer depends on `viewer/pkg/` built via the self-contained wrapper crate
+in `wasm-build/` (depends on `djvu-rs` from crates.io — no local checkout needed):
 
 ```sh
-wasm-pack build --target web --out-dir viewer/pkg \
-  /Users/leo/Code/djvu-rs --features wasm
+wasm-pack build --target web \
+  --out-dir /absolute/path/to/djvu-viewer-extension/viewer/pkg \
+  wasm-build/
 ```
 
-`viewer/pkg/` is gitignored — must be built locally.
+Or using an absolute path shorthand from the repo root:
+
+```sh
+wasm-pack build --target web --out-dir "$PWD/viewer/pkg" wasm-build/
+```
+
+`viewer/pkg/` and `wasm-build/target/` are gitignored — must be built locally.
+
+> **Note:** `--out-dir` must be absolute (or use `$PWD/...`).  
+> wasm-pack resolves relative paths against the crate directory, not the shell CWD.
 
 ## Key rules
 

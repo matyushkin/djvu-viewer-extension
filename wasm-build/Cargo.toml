@@ -1,0 +1,12 @@
+[package]
+name = "djvu-viewer-wasm"
+version = "0.1.0"
+edition = "2021"
+description = "Thin cdylib wrapper that re-exports djvu-rs WASM bindings for the browser extension."
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+djvu-rs = { version = "0.8", features = ["wasm"] }
