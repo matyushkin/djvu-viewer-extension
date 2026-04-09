@@ -176,9 +176,9 @@ dependencies = [
 
 [[package]]
 name = "djvu-rs"
-version = "0.8.0"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f5863fe024d097a23cb7af8d96f6de262759ebf69f6df58423ee6f8a8283f9b0"
+checksum = "c02c9ba0da03bd3bad8140867ffcba5375fbe592f4f432c2817a2d18d4b40e3c"
 dependencies = [
  "clap",
  "jpeg-encoder",
