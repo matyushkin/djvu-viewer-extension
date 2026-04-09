@@ -127,7 +127,11 @@ impl WasmPage {
             height: h,
             scale,
             bold: 0,
-            aa: true,
+            // aa: true applies a 2×2 box-filter downscale after rendering,
+            // halving both dimensions.  width_at/height_at return the full
+            // target size, so the ImageData constructor would get a size
+            // mismatch.  Keep aa:false; the viewer can add CSS smoothing.
+            aa: false,
             rotation: UserRotation::None,
             permissive: true,
             resampling: Resampling::Bilinear,

@@ -3,6 +3,7 @@ import init, { WasmDocument } from './pkg/djvu_viewer_wasm.js';
 let doc = null;
 let currentPage = 0;
 let currentDpi = 150;
+let renderPending = false;
 
 const canvas  = document.getElementById('canvas');
 const status  = document.getElementById('status');
@@ -54,20 +55,34 @@ async function main() {
 
 async function renderPage() {
   if (!doc) return;
+
+  // Snapshot mutable state so rapid slider/key events can't cause a DPI
+  // mismatch between width_at/height_at and render() calls.
   const page = doc.page(currentPage);
-  const w = page.width_at(currentDpi);
-  const h = page.height_at(currentDpi);
-  status.textContent = `Rendering page ${currentPage + 1} at ${currentDpi} dpi…`;
+  const dpi  = currentDpi;
+
+  // Debounce: if another render is already scheduled, skip this one — the
+  // final render (after the user stops dragging) will pick up the latest DPI.
+  if (renderPending) return;
+  renderPending = true;
+
+  const w = page.width_at(dpi);
+  const h = page.height_at(dpi);
+  status.textContent = `Rendering page ${currentPage + 1} at ${dpi} dpi…`;
   await new Promise(r => setTimeout(r, 0));
+  renderPending = false;
 
   const t0 = performance.now();
-  const pixels = page.render(currentDpi);
-  const ms = (performance.now() - t0).toFixed(1);
-
-  canvas.width = w;
-  canvas.height = h;
-  canvas.getContext('2d').putImageData(new ImageData(pixels, w, h), 0, 0);
-  status.textContent = `${w}×${h} px — ${ms} ms`;
+  try {
+    const pixels = page.render(dpi);
+    const ms = (performance.now() - t0).toFixed(1);
+    canvas.width = w;
+    canvas.height = h;
+    canvas.getContext('2d').putImageData(new ImageData(pixels, w, h), 0, 0);
+    status.textContent = `${w}×${h} px — ${ms} ms`;
+  } catch (e) {
+    showError(`Render error: ${e.message}`);
+  }
 }
 
 function updateControls() {
