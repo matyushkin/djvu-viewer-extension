@@ -17,9 +17,11 @@ const filename = document.getElementById('filename');
 async function main() {
   await init();
 
-  // URL to fetch is passed as ?url=<encoded> query param.
-  const params = new URLSearchParams(location.search);
-  const djvuUrl = params.get('url');
+  // URL to fetch is passed as ?url=<original-url>.
+  // regexSubstitution inserts the raw URL (not percent-encoded), so a second
+  // '?' in the value would confuse URLSearchParams.  Parse manually instead.
+  const search = location.search.slice(1); // strip leading '?'
+  const djvuUrl = search.startsWith('url=') ? search.slice(4) : null;
   if (!djvuUrl) {
     showError('No DjVu URL specified.');
     return;

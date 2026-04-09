@@ -1,16 +1,1 @@
-[
-  {
-    "id": 1,
-    "priority": 1,
-    "action": {
-      "type": "redirect",
-      "redirect": {
-        "extensionPath": "/viewer/viewer.html?url={url.query}"
-      }
-    },
-    "condition": {
-      "urlFilter": "*.djvu",
-      "resourceTypes": ["main_frame", "sub_frame"]
-    }
-  }
-]
+[]
